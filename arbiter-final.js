@@ -1,7 +1,6 @@
 // =======================================================================
 // === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک ===
 // 🔑 آدرس‌ها به فرم تماماً کوچک هستند تا از ایجاد Checksum در کد منبع جلوگیری شود.
-// ما از این آدرس‌های کوچک در تابع hexlify استفاده خواهیم کرد.
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
 const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; 
 const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
@@ -87,9 +86,7 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         const coder = new ethers.utils.AbiCoder();
         
-        // 🛑 مکانیسم نهایی دور زدن Checksum:
-        // ما آدرس‌ها را به صورت bytes32 و Hex Encoded به تابع encode می‌دهیم. 
-        // این کار باعث می‌شود Ethers.js از اعتبارسنجی سخت‌گیرانه روی رشته آدرس فرار کند.
+        // 🛑 مکانیسم نهایی دور زدن Checksum: تبدیل به بایت برای جلوگیری از اعتبارسنجی
         const encodedArgs = coder.encode(
             ["uint", "bytes32[]"], // تایپ‌ها را به bytes32[] تغییر می‌دهیم
             [
@@ -145,7 +142,7 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         let errorMessage = error.message || "خطای ناشناخته.";
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-             errorMessage = "تراکنش با شکست مواجه خواهد شد. (احتمالاً به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد هوشمند شما)";
+             errorMessage = "تراکنش با شکست مواجه خواهد شد.";
         }
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً اطمینان حاصل کنید که ولت شما به شبکه سونیک متصل است.**`);
     }
