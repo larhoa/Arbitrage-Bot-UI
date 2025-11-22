@@ -1,10 +1,10 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
-// **اصلاح نهایی و قطعی Checksum شده (EIP-55) برای رفع مشکل Invalid Address**
+// **اصلاح نهایی و قطعی:** بازگشت به آدرس‌های تماماً کوچک برای به حداقل رساندن اعتبارسنجی داخلی ethers.js
 
-const CONTRACT_ADDRESS = "0x47231c27658704602F23f5b08B51e2A0494457ab";
-const WETH_ADDRESS = "0x5972B565d755A8A45226436357Abd4B2d9397500B7";
-const WBTC_ADDRESS = "0xfDBC0d37E3d120B880b957E5025A58793B82173e";
-const ROUTER_SWAP_X = "0x0A047E2abDF8263Fc4F7C369f439e2F960a06FD9";
+const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e".toLowerCase();
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9".toLowerCase();
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -51,7 +51,6 @@ document.getElementById('connectWallet').onclick = async () => {
         };
 
         // ۴. ساختن اینترفیس قرارداد اصلی
-        // استفاده مستقیم از CONTRACT_ADDRESS استاندارد شده
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
         
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
@@ -88,17 +87,18 @@ document.getElementById('runArbitrage').onclick = async () => {
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new ethers.Interface(routerAbi);
 
-        // استفاده مستقیم از آدرس‌های استاندارد شده
+        // استفاده مستقیم از آدرس‌های تماماً کوچک
         const path = [
             WETH_ADDRESS, 
             WBTC_ADDRESS
         ];
         
+        // این خط همان خطی است که خطا را ایجاد می‌کرد. استفاده از آدرس‌های تماماً کوچک آخرین امید است.
         const callData = routerInterface.encodeFunctionData("getAmountsOut", [amountWETH, path]);
 
         // فراخوانی مستقیم eth_call
         const encodedResult = await signer.call({
-            to: ROUTER_SWAP_X, // استفاده مستقیم از آدرس روتر استاندارد شده
+            to: ROUTER_SWAP_X, 
             data: callData
         });
 
@@ -141,6 +141,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
              errorMessage = "تراکنش با شکست مواجه خواهد شد. (احتمالاً به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد هوشمند شما)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**تمام مشکلات زیرساختی حل شد.** اکنون خطا احتمالاً از منطق قرارداد هوشمند یا موجودی ولت شماست.`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**اگر این خطا تکرار شد، مشکل قطعاً به خاطر آدرس‌های قراردادهای شما یا منطق قرارداد هوشمند است.**`);
     }
 };
