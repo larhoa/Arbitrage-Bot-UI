@@ -1,65 +1,7 @@
-// =======================================================================
-// === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک ===
-// 🔑 آدرس‌ها به فرم تماماً کوچک هستند تا از ایجاد Checksum در کد منبع جلوگیری شود.
-const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; 
-const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
-const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; 
-
-// ABI فقط برای توابع مورد نیاز
-const ARBITRAGE_ABI = [
-    "function startArbitrage(uint128 amountWETH, uint256 estimatedWBTCReceived, uint256 deadline)"
-];
-
-// متغیرهای Ethers (تعریف سراسری)
-let signer;
-let arbitrageContract;
+﻿// ... (بخش‌های قبلی کد، مطمئن شوید که آدرس‌های ثابت در بالا تماماً کوچک هستند)
 
 // =======================================================================
-// === توابع کمکی DOM ===
-function updateStatus(message) {
-    document.getElementById('status').textContent = message;
-}
-
-// =======================================================================
-// === تابع اصلی اتصال به ولت ===
-document.getElementById('connectWallet').onclick = async () => {
-    const ethers = window.ethers;
-    
-    if (typeof window.ethereum === 'undefined') {
-        updateStatus("❌ ولت (MetaMask یا Rabby) در مرورگر پیدا نشد. لطفاً نصب کنید.");
-        return;
-    }
-    if (typeof ethers === 'undefined') {
-        updateStatus("❌ خطای اتصال به ethers: کتابخانه Ethers.js در مرورگر بارگذاری نشد.");
-        return;
-    }
-
-    try {
-        // ۱. ساخت Provider (ChainID سونیک: 146)
-        const provider = new ethers.providers.Web3Provider(window.ethereum, 146);
-        
-        updateStatus("در حال درخواست اتصال به کیف پول...");
-        await provider.send("eth_requestAccounts", []); 
-        signer = provider.getSigner();
-        
-        // ساختن اینترفیس قرارداد اصلی
-        arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer); 
-        
-        const signerAddress = await signer.getAddress();
-        
-        updateStatus(`✅ اتصال موفق. آدرس شما: ${signerAddress}`);
-        document.getElementById('runArbitrage').disabled = false;
-        document.getElementById('connectWallet').disabled = true;
-
-    } catch (error) {
-        console.error("Wallet connection failed:", error);
-        updateStatus(`❌ خطای اتصال به ولت: ${error.message}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
-    }
-};
-
-// =======================================================================
-// === تابع اصلی اجرای آربیتراژ ===
+// === تابع اصلی اجرای آربیتراژ - با ABI استاندارد address[] ===
 document.getElementById('runArbitrage').onclick = async () => {
     const ethers = window.ethers;
     
@@ -86,16 +28,12 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         const coder = new ethers.utils.AbiCoder();
         
-        // 🛑 مکانیسم نهایی دور زدن Checksum: تبدیل به بایت برای جلوگیری از اعتبارسنجی
+        // 🔑 اصلاح نهایی: استفاده مجدد از address[] و آدرس‌های تماماً کوچک (WETH_ADDRESS, WBTC_ADDRESS)
+        const path = [WETH_ADDRESS, WBTC_ADDRESS]; // آدرس‌های ثابت تماماً کوچک استفاده می‌شوند
+        
         const encodedArgs = coder.encode(
-            ["uint", "bytes32[]"], // تایپ‌ها را به bytes32[] تغییر می‌دهیم
-            [
-                amountWETH, 
-                [
-                    ethers.utils.hexlify(WETH_ADDRESS), // آدرس کوچک WETH را به بایت تبدیل می‌کنیم
-                    ethers.utils.hexlify(WBTC_ADDRESS)  // آدرس کوچک WBTC را به بایت تبدیل می‌کنیم
-                ]
-            ]
+            ["uint", "address[]"], // بازگشت به نوع address[] (تایپ صحیح ABI)
+            [amountWETH, path]
         );
         
         const callData = methodSignature + encodedArgs.substring(2);
@@ -106,7 +44,7 @@ document.getElementById('runArbitrage').onclick = async () => {
             data: callData
         });
 
-        // ۳. دیکد کردن نتیجه و محاسبه Slippage
+        // ... (بقیه منطق دیکدینگ، محاسبه slippage و فراخوانی startArbitrage بدون تغییر است)
         const decodedResult = routerInterface.decodeFunctionResult("getAmountsOut", encodedResult);
         let estimatedWBTCReceived = decodedResult[0][1];
         
@@ -142,8 +80,8 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         let errorMessage = error.message || "خطای ناشناخته.";
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-             errorMessage = "تراکنش با شکست مواجه خواهد شد.";
+             errorMessage = "تراکنش با شکست مواجه خواهد شد. (احتمالاً به دلیل لغزش بالا یا خطا در قرارداد)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً اطمینان حاصل کنید که ولت شما به شبکه سونیک متصل است.**`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً مطمئن شوید که ولت شما به شبکه سونیک متصل است.**`);
     }
 };
