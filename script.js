@@ -8,14 +8,12 @@ const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9".toLowerCase()
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
-    "function startArbitrage(uint128 amountWETH, uint256 estimatedWBTCReceived, uint256 deadline)",
-    "function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"
+    "function startArbitrage(uint128 amountWETH, uint256 estimatedWBTCReceived, uint256 deadline)"
 ];
 
 // متغیرهای Ethers
 let signer; // امضاکننده
 let arbitrageContract; // قرارداد اصلی (نیاز به امضا)
-let routerSwapX; // روتر استعلام قیمت (از Signer استفاده می‌کند)
 
 // --- توابع کمکی DOM ---
 function updateStatus(message) {
@@ -31,13 +29,14 @@ document.getElementById('connectWallet').onclick = async () => {
 
     try {
         // **اصلاح کلیدی نهایی:** تعریف دستی شبکه سونیک با ChainID 146 و ENS غیرفعال
+        // این قوی‌ترین راه برای جلوگیری از خطای ENS در Ethers.js است.
         const sonicNetwork = new ethers.Network(
             "Sonic Mainnet", // نام شبکه
-            146 // ChainID شبکه سونیک (معادل 0x92)
+            146 // ChainID شبکه سونیک
         );
-        sonicNetwork.ensAddress = null; // **غیرفعال‌سازی قطعی سرویس ENS**
+        sonicNetwork.ensAddress = null; // غیرفعال‌سازی قطعی سرویس ENS
 
-        // ۱. ساخت Provider با استفاده از Network تعریف شده برای جلوگیری از خطای ENS
+        // ۱. ساخت Provider با استفاده از Network تعریف شده
         const customProvider = new ethers.BrowserProvider(window.ethereum, sonicNetwork);
         
         // ۲. درخواست اتصال حساب‌ها
@@ -47,16 +46,14 @@ document.getElementById('connectWallet').onclick = async () => {
         // ۳. دریافت امضاکننده (Signer)
         signer = await customProvider.getSigner();
         
-        // تنظیمات قرارداد (آپشن ens: null در اینجا اختیاری است اما حفظ می‌شود)
+        // تنظیمات قرارداد
         const contractOptions = {
             ens: null 
         };
 
-        // ۴. ساختن اینترفیس‌های قرارداد
-        // قراردادها از signer ولت استفاده می‌کنند تا از RPC داخلی ولت استفاده شود.
+        // ۴. ساختن اینترفیس قرارداد اصلی (روتر حذف شد زیرا از فراخوانی خام استفاده می‌کنیم)
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
-        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, signer, contractOptions); 
-
+        
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
         document.getElementById('runArbitrage').disabled = false;
         document.getElementById('connectWallet').disabled = true;
@@ -84,15 +81,29 @@ document.getElementById('runArbitrage').onclick = async () => {
         // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار)
         const amountWETH = ethers.parseUnits(amountDecimal, 18);
         
-        // --- ۱. استعلام قیمت لحظه‌ای (برای محاسبه estimatedWBTCReceived) ---
-        updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC...");
+        // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call) ---
+        updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC از طریق فراخوانی خام ولت...");
+
+        // ساختن داده‌های فراخوانی برای getAmountsOut
+        // این تابع از ABI روتر (نه قرارداد آربیتراژ) استفاده می‌کند
+        const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
+        const routerInterface = new ethers.Interface(routerAbi);
 
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
-        // فراخوانی getAmountsOut از روتر (توجه: WBTC 8 رقم اعشار دارد)
-        let amountsOut = await routerSwapX.getAmountsOut(amountWETH, path);
+        const callData = routerInterface.encodeFunctionData("getAmountsOut", [amountWETH, path]);
+
+        // فراخوانی مستقیم eth_call از طریق Provider/Signer
+        // این متد، Ethers.js را مجبور به حل نام (ENS) نمی‌کند.
+        const encodedResult = await signer.call({
+            to: ROUTER_SWAP_X, // آدرس روتر
+            data: callData
+        });
+
+        // دیکد کردن نتیجه (خروجی getAmountsOut یک آرایه از آرایه‌ها است: [[مقدار_ورودی, مقدار_خروجی]])
+        const decodedResult = routerInterface.decodeFunctionResult("getAmountsOut", encodedResult);
         
-        // amountsOut[1] مقدار WBTC دریافتی است
-        let estimatedWBTCReceived = amountsOut[1];
+        // decodedResult[0] آرایه amounts است. amounts[1] مقدار WBTC دریافتی است.
+        let estimatedWBTCReceived = decodedResult[0][1];
         
         // محاسبه slippage (لغزش) با BigInt برای دقت بالا
         const safetyMarginBPS = 10n; // 0.1% = 10 basis points
@@ -128,6 +139,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
              errorMessage = "تراکنش با شکست مواجه خواهد شد. (ممکن است به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد باشد)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nمطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است.`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nاگر خطا همچنان ENS است، لطفاً به من اطلاع دهید.`);
     }
 };
