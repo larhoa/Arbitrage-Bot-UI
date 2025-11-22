@@ -1,11 +1,11 @@
 ﻿// =======================================================================
-// === تعریف ثابت‌ها (Constants) - نسخه نهایی ===
-// حذف 0x برای آدرس‌هایی که باعث خطای Checksum می‌شوند.
-const CONTRACT_ADDRESS = "47231c27658704602f23f5b08b51e2a0494457ab"; // بدون 0x
-const WETH_ADDRESS = "5972b565d755a8a45226436357abd4b2d9397500b7"; // بدون 0x
-const WBTC_ADDRESS = "fdbc0d37e3d120b880b957e5025a58793b82173e"; // بدون 0x
-const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; // این آدرس باید 0x داشته باشد
-// ... بقیه کد (کدهای قبلی که شامل window.ethers و toLowerCase() بودند، باقی می‌مانند)
+// === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک و شامل 0x ===
+// این نسخه آدرس‌ها را به صورت استاندارد تعریف می‌کند، اما در زمان استفاده (Encode)، 
+// به صورت دفاعی آن‌ها را به حروف کوچک تبدیل می‌کنیم تا خطای Checksum را دور بزنیم.
+const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; 
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; 
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -23,7 +23,7 @@ function updateStatus(message) {
 }
 
 // =======================================================================
-// === تابع اصلی اتصال به ولت - استفاده از window.ethers ===
+// === تابع اصلی اتصال به ولت - رفع مشکل عدم واکنش دکمه ===
 document.getElementById('connectWallet').onclick = async () => {
     
     if (typeof window.ethereum === 'undefined') {
@@ -36,8 +36,7 @@ document.getElementById('connectWallet').onclick = async () => {
     }
 
     try {
-        // ۱. ساخت Provider
-        // ما از window.ethers استفاده می‌کنیم تا به کتابخانه‌ی بارگذاری شده از index.html دسترسی مستقیم داشته باشیم.
+        // ساخت Provider با استفاده مستقیم از window.ethers
         const provider = new window.ethers.providers.Web3Provider(window.ethereum, 146);
         
         updateStatus("در حال درخواست اتصال به کیف پول...");
@@ -60,7 +59,7 @@ document.getElementById('connectWallet').onclick = async () => {
 };
 
 // =======================================================================
-// === تابع اصلی اجرای آربیتراژ - استفاده از window.ethers ===
+// === تابع اصلی اجرای آربیتراژ - رفع خطاهای Checksum و Data Length ===
 document.getElementById('runArbitrage').onclick = async () => {
     
     if (!signer) {
@@ -79,17 +78,18 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC...");
 
-        // ۱. آماده‌سازی برای فراخوانی eth_call (استعلام قیمت)
+        // ۱. آماده‌سازی برای فراخوانی eth_call
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new window.ethers.utils.Interface(routerAbi);
         const methodSignature = routerInterface.getSighash("getAmountsOut");
         
         const coder = new window.ethers.utils.AbiCoder();
         
-        // 🔑 نکته حیاتی برای رفع خطای Checksum: تبدیل اجباری به حروف کوچک در لحظه استفاده
+        // 🔑 ترفند نهایی: استفاده از آدرس‌های ثابت و اعمال اجباری toLowerCase() در زمان encode
+        // این کار خطای Checksum Address را که در زمان اجرای آربیتراژ رخ می‌داد، به طور نهایی رفع می‌کند.
         const path = [WETH_ADDRESS.toLowerCase(), WBTC_ADDRESS.toLowerCase()]; 
         
-        // استفاده از تایپ صحیح "address[]"
+        // استفاده از تایپ صحیح "address[]" (رفع خطای incorrect data length)
         const encodedArgs = coder.encode(
             ["uint", "address[]"], 
             [amountWETH, path]
@@ -107,7 +107,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         const decodedResult = routerInterface.decodeFunctionResult("getAmountsOut", encodedResult);
         let estimatedWBTCReceived = decodedResult[0][1];
         
-        // استفاده از window.ethers.BigNumber
         const BIGNUMBER_10000 = window.ethers.BigNumber.from(10000);
         const safetyMarginBPS = window.ethers.BigNumber.from(10); // 0.1%
         
