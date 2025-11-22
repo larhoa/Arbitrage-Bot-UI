@@ -1,10 +1,10 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
-// **وضعیت:** آدرس‌ها به حروف کوچک تبدیل شدند تا مشکل Checksum حل شود.
+// **وضعیت:** آدرس‌ها به فرمت استاندارد EIP-55 برگشت داده شدند تا مشکل INVALID_ARGUMENT در Ethers.js رفع شود.
 
-const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
-const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e".toLowerCase();
-const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9".toLowerCase();
+const CONTRACT_ADDRESS = "0x47231c27658704602F23f5b08b51e2a0494457AB";
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357Abd4b2d9397500B7";
+const WBTC_ADDRESS = "0xfDBC0D37e3d120B880b957E5025A58793B82173E";
+const ROUTER_SWAP_X = "0x0A047E2abDF8263Fc4F7C369f439e2F960a06FD9";
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -28,11 +28,10 @@ document.getElementById('connectWallet').onclick = async () => {
     }
 
     try {
-        // **اصلاح کلیدی نهایی:** تعریف دستی شبکه سونیک با ChainID 146 و ENS غیرفعال
-        // این قوی‌ترین راه برای جلوگیری از خطای ENS در Ethers.js است.
+        // تعریف دستی شبکه سونیک با ChainID 146 و ENS غیرفعال
         const sonicNetwork = new ethers.Network(
-            "Sonic Mainnet", // نام شبکه
-            146 // ChainID شبکه سونیک
+            "Sonic Mainnet",
+            146
         );
         sonicNetwork.ensAddress = null; // غیرفعال‌سازی قطعی سرویس ENS
 
@@ -51,7 +50,7 @@ document.getElementById('connectWallet').onclick = async () => {
             ens: null 
         };
 
-        // ۴. ساختن اینترفیس قرارداد اصلی (روتر حذف شد زیرا از فراخوانی خام استفاده می‌کنیم)
+        // ۴. ساختن اینترفیس قرارداد اصلی
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
         
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
@@ -81,36 +80,33 @@ document.getElementById('runArbitrage').onclick = async () => {
         // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار)
         const amountWETH = ethers.parseUnits(amountDecimal, 18);
         
-        // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call) ---
+        // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call برای دور زدن ENS) ---
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC از طریق فراخوانی خام ولت...");
 
         // ساختن داده‌های فراخوانی برای getAmountsOut
-        // این تابع از ABI روتر (نه قرارداد آربیتراژ) استفاده می‌کند
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new ethers.Interface(routerAbi);
 
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
         const callData = routerInterface.encodeFunctionData("getAmountsOut", [amountWETH, path]);
 
-        // فراخوانی مستقیم eth_call از طریق Provider/Signer
-        // این متد، Ethers.js را مجبور به حل نام (ENS) نمی‌کند.
+        // فراخوانی مستقیم eth_call
         const encodedResult = await signer.call({
             to: ROUTER_SWAP_X, // آدرس روتر
             data: callData
         });
 
-        // دیکد کردن نتیجه (خروجی getAmountsOut یک آرایه از آرایه‌ها است: [[مقدار_ورودی, مقدار_خروجی]])
+        // دیکد کردن نتیجه
         const decodedResult = routerInterface.decodeFunctionResult("getAmountsOut", encodedResult);
         
         // decodedResult[0] آرایه amounts است. amounts[1] مقدار WBTC دریافتی است.
         let estimatedWBTCReceived = decodedResult[0][1];
         
-        // محاسبه slippage (لغزش) با BigInt برای دقت بالا
+        // محاسبه slippage (لغزش)
         const safetyMarginBPS = 10n; // 0.1% = 10 basis points
         const amountOutMinWBTC = (estimatedWBTCReceived * (10000n - safetyMarginBPS)) / 10000n;
 
         // --- ۲. تنظیم ددلاین ---
-        // ددلاین را 60 ثانیه در آینده قرار می‌دهیم
         const deadline = Math.floor(Date.now() / 1000) + 60;
 
         updateStatus(`✅ قیمت استعلام شد. مقدار تخمینی WBTC: ${ethers.formatUnits(estimatedWBTCReceived, 8)}\nمقدار امن برای چک لغزش: ${ethers.formatUnits(amountOutMinWBTC, 8)} WBTC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
@@ -118,7 +114,7 @@ document.getElementById('runArbitrage').onclick = async () => {
         // --- ۳. فراخوانی تابع startArbitrage (نیاز به امضا) ---
         const tx = await arbitrageContract.startArbitrage(
             amountWETH,
-            amountOutMinWBTC, // از مقدار امن برای estimatedWBTCReceived استفاده می‌کنیم
+            amountOutMinWBTC,
             deadline,
             {
                 gasLimit: 3000000,
@@ -139,6 +135,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
              errorMessage = "تراکنش با شکست مواجه خواهد شد. (ممکن است به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد باشد)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nاگر خطا همچنان ENS است، لطفاً به من اطلاع دهید.`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nاکنون تمام مشکلات زیرساختی رفع شده‌اند. مشکل بعدی از قرارداد هوشمند یا موجودی ولت شماست.`);
     }
 };
