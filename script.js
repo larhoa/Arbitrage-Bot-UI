@@ -1,5 +1,5 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
-// **اصلاح نهایی و قطعی:** بازگشت به آدرس‌های تماماً کوچک برای به حداقل رساندن اعتبارسنجی داخلی ethers.js
+// **بازگشت به آدرس‌های تماماً کوچک (Lowercase)**
 
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
 const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
@@ -86,15 +86,22 @@ document.getElementById('runArbitrage').onclick = async () => {
         // ساختن داده‌های فراخوانی برای getAmountsOut
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new ethers.Interface(routerAbi);
-
-        // استفاده مستقیم از آدرس‌های تماماً کوچک
-        const path = [
-            WETH_ADDRESS, 
-            WBTC_ADDRESS
-        ];
         
-        // این خط همان خطی است که خطا را ایجاد می‌کرد. استفاده از آدرس‌های تماماً کوچک آخرین امید است.
-        const callData = routerInterface.encodeFunctionData("getAmountsOut", [amountWETH, path]);
+        // امضای متد (Method Signature) برای getAmountsOut
+        const methodSignature = routerInterface.getFunction("getAmountsOut").selector; // 0xd7b4f307
+        
+        // آدرس‌های Path (تماماً کوچک)
+        const path = [WETH_ADDRESS, WBTC_ADDRESS];
+        
+        // **اصلاح نهایی و قطعی:** استفاده از AbiCoder برای دور زدن اعتبارسنجی سختگیرانه Ethers.js
+        const coder = ethers.AbiCoder.defaultAbiCoder();
+        const encodedArgs = coder.encode(
+            ["uint", "address[]"], 
+            [amountWETH, path]
+        );
+        
+        // ترکیب امضا و آرگومان‌های Encoded
+        const callData = methodSignature + encodedArgs.substring(2);
 
         // فراخوانی مستقیم eth_call
         const encodedResult = await signer.call({
