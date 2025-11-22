@@ -13,11 +13,10 @@ const ARBITRAGE_ABI = [
 ];
 
 // متغیرهای Ethers
-let provider; // Provider تزریق شده توسط ولت (برای امضا و استعلام قیمت)
-// **حذف شد:** let routerProvider; // دیگر از RPC اختصاصی استفاده نمی‌کنیم
-let signer;
-let arbitrageContract;
-let routerSwapX;
+let provider; // Provider تزریق شده توسط ولت
+let signer; // امضاکننده
+let arbitrageContract; // قرارداد اصلی (نیاز به امضا)
+let routerSwapX; // روتر استعلام قیمت (از Signer استفاده می‌کند)
 
 // --- توابع کمکی DOM ---
 function updateStatus(message) {
@@ -35,9 +34,6 @@ document.getElementById('connectWallet').onclick = async () => {
         // ۱. اتصال به Provider تزریق شده (کیف پول)
         provider = new ethers.BrowserProvider(window.ethereum);
         
-        // **تغییر اصلی:** RPC اختصاصی به دلیل خطاهای پیاپی (۴۰۱, ۴۰۳) حذف شد.
-        // اکنون Provider ولت (Rabby) هم برای امضا و هم برای استعلام قیمت استفاده می‌شود.
-
         // ۲. درخواست اتصال حساب‌ها
         updateStatus("در حال درخواست اتصال به کیف پول...");
         await provider.send("eth_requestAccounts", []);
@@ -51,11 +47,11 @@ document.getElementById('connectWallet').onclick = async () => {
         };
 
         // ۴. ساختن اینترفیس‌های قرارداد
-        // قرارداد اصلی آربیتراژ (نیاز به امضا) از signer ولت استفاده می‌کند.
+        // قرارداد اصلی آربیتراژ از signer ولت استفاده می‌کند.
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
         
-        // روتر (استعلام قیمت) اکنون از 'provider' ولت استفاده می‌کند.
-        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, provider, contractOptions); 
+        // **تغییر نهایی:** روتر استعلام قیمت نیز از 'signer' استفاده می‌کند تا مشکل RPC/ENS حل شود.
+        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, signer, contractOptions); 
 
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
         document.getElementById('runArbitrage').disabled = false;
@@ -85,7 +81,7 @@ document.getElementById('runArbitrage').onclick = async () => {
         const amountWETH = ethers.parseUnits(amountDecimal, 18);
         
         // --- ۱. استعلام قیمت لحظه‌ای (برای محاسبه estimatedWBTCReceived) ---
-        // این فراخوانی اکنون از provider ولت استفاده می‌کند.
+        // این فراخوانی اکنون از signer ولت استفاده می‌کند.
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC...");
 
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
