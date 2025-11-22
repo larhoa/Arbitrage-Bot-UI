@@ -1,10 +1,10 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
 // آدرس‌های تماماً کوچک (Lowercase)
-
-const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
-const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e".toLowerCase();
-const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9".toLowerCase();
+// ⚠️ توجه: آدرس‌های زیر باید در فایل script.js شما به صورت تماماً کوچک ذخیره شوند.
+const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab";
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7";
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e";
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9";
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -22,7 +22,7 @@ function updateStatus(message) {
 
 // --- تابع اصلی اتصال به ولت ---
 document.getElementById('connectWallet').onclick = async () => {
-    // ⚠️ اصلاح مهم: استفاده از window.ethers برای اطمینان از دسترسی به شیء Ethers v5 از CDN
+    // ⚠️ استفاده از window.ethers برای دسترسی به کتابخانه v5
     const ethers = window.ethers; 
     
     if (typeof window.ethereum === 'undefined') {
@@ -33,7 +33,6 @@ document.getElementById('connectWallet').onclick = async () => {
         updateStatus("❌ خطای اتصال به ethers: کتابخانه Ethers.js در مرورگر بارگذاری نشد.");
         return;
     }
-
 
     try {
         // ۱. ساخت Provider با استفاده از Web3Provider (سازگار با Ethers v5)
@@ -65,7 +64,7 @@ document.getElementById('connectWallet').onclick = async () => {
 
 // --- تابع اصلی اجرای آربیتراژ ---
 document.getElementById('runArbitrage').onclick = async () => {
-    // ⚠️ اصلاح مهم: استفاده از window.ethers برای اطمینان از دسترسی به شیء Ethers v5 از CDN
+    // ⚠️ استفاده از window.ethers برای دسترسی به کتابخانه v5
     const ethers = window.ethers; 
     
     if (!signer) {
@@ -93,14 +92,14 @@ document.getElementById('runArbitrage').onclick = async () => {
         // امضای متد (Method Signature) برای getAmountsOut
         const methodSignature = routerInterface.getSighash("getAmountsOut");
         
-        // آدرس‌های Path (تماماً کوچک)
+        // آدرس‌های Path - تماماً کوچک برای جلوگیری از خطای Checksum
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
         
-        // استفاده از AbiCoder برای دور زدن اعتبارسنجی سختگیرانه Ethers.js
+        // استفاده از AbiCoder - آدرس‌های داخل path در اینجا به صورت رشته‌ای وارد می‌شوند و باید تماماً کوچک باشند.
         const coder = new ethers.utils.AbiCoder();
         const encodedArgs = coder.encode(
             ["uint", "address[]"], 
-            [amountWETH, path]
+            [amountWETH, path] // path قبلاً کوچک شده است.
         );
         
         // ترکیب امضا و آرگومان‌های Encoded
@@ -123,8 +122,8 @@ document.getElementById('runArbitrage').onclick = async () => {
         const safetyMarginBPS = ethers.BigNumber.from(10); // 0.1% = 10 basis points
         
         const amountOutMinWBTC = estimatedWBTCReceived
-            .mul(BIGNUMBER_10000.sub(safetyMarginBPS)) // ضرب در (10000 - 10)
-            .div(BIGNUMBER_10000); // تقسیم بر 10000
+            .mul(BIGNUMBER_10000.sub(safetyMarginBPS)) 
+            .div(BIGNUMBER_10000); 
 
         // --- ۲. تنظیم ددلاین ---
         const deadline = Math.floor(Date.now() / 1000) + 60;
