@@ -43,9 +43,19 @@ document.getElementById('connectWallet').onclick = async () => {
         signer = await provider.getSigner();
         
         // ۴. ساختن اینترفیس‌های قرارداد
-        arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer);
+        // ۴. ساختن اینترفیس‌های قرارداد
+        
+        // **اصلاح برای رفع خطای ENS/Network در شبکه‌های فرعی (سونیک):**
+        const contractOptions = {
+            ens: null // این گزینه چک کردن ENS را غیرفعال می‌کند
+        };
+
+        arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
+        
         // روتر را فقط برای استعلام قیمت (بدون نیاز به امضا) با provider می‌سازیم
-        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, provider);
+        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, provider, contractOptions);
+
+        updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nشما در حال استفاده از شبکه سونیک هستید.`);
 
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nشما در حال استفاده از شبکه Arbitrum One هستید.`);
         document.getElementById('runArbitrage').disabled = false;
@@ -124,3 +134,4 @@ document.getElementById('runArbitrage').onclick = async () => {
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nمطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است.`);
     }
 };
+
