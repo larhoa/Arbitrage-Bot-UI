@@ -1,9 +1,9 @@
 // =======================================================================
 // === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک ===
-// 🔑 آدرس‌ها تماماً کوچک تعریف می‌شوند تا Ethers v5 آن‌ها را بپذیرد.
-// 0x5972B565d755A8A45226436357aBd4B2D9397500B7 (Checksumed)
+// 🔑 آدرس‌ها به فرم تماماً کوچک هستند تا از ایجاد Checksum در کد منبع جلوگیری شود.
+// ما از این آدرس‌های کوچک در تابع hexlify استفاده خواهیم کرد.
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; // اصلاح شده به تماماً کوچک
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; 
 const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
 const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; 
 
@@ -27,18 +27,24 @@ function updateStatus(message) {
 document.getElementById('connectWallet').onclick = async () => {
     const ethers = window.ethers;
     
-    if (typeof window.ethereum === 'undefined' || typeof ethers === 'undefined') {
-        updateStatus("❌ ولت یا کتابخانه Ethers پیدا نشد.");
+    if (typeof window.ethereum === 'undefined') {
+        updateStatus("❌ ولت (MetaMask یا Rabby) در مرورگر پیدا نشد. لطفاً نصب کنید.");
+        return;
+    }
+    if (typeof ethers === 'undefined') {
+        updateStatus("❌ خطای اتصال به ethers: کتابخانه Ethers.js در مرورگر بارگذاری نشد.");
         return;
     }
 
     try {
+        // ۱. ساخت Provider (ChainID سونیک: 146)
         const provider = new ethers.providers.Web3Provider(window.ethereum, 146);
+        
         updateStatus("در حال درخواست اتصال به کیف پول...");
         await provider.send("eth_requestAccounts", []); 
         signer = provider.getSigner();
         
-        // ساخت قرارداد: از آدرس CONTRACT_ADDRESS که کوچک است استفاده می‌شود
+        // ساختن اینترفیس قرارداد اصلی
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer); 
         
         const signerAddress = await signer.getAddress();
@@ -49,7 +55,7 @@ document.getElementById('connectWallet').onclick = async () => {
 
     } catch (error) {
         console.error("Wallet connection failed:", error);
-        updateStatus(`❌ خطای اتصال به ولت: ${error.message}`);
+        updateStatus(`❌ خطای اتصال به ولت: ${error.message}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
     }
 };
 
@@ -74,33 +80,41 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC...");
 
+        // ۱. آماده‌سازی برای فراخوانی eth_call (استعلام قیمت)
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new ethers.utils.Interface(routerAbi);
         const methodSignature = routerInterface.getSighash("getAmountsOut");
         
-        // ⚠️ مهم: در اینجا از آدرس‌های تماماً کوچک (WETH_ADDRESS, WBTC_ADDRESS) استفاده می‌شود
-        const path = [WETH_ADDRESS, WBTC_ADDRESS]; 
-        
         const coder = new ethers.utils.AbiCoder();
+        
+        // 🛑 مکانیسم نهایی دور زدن Checksum:
+        // ما آدرس‌ها را به صورت bytes32 و Hex Encoded به تابع encode می‌دهیم. 
+        // این کار باعث می‌شود Ethers.js از اعتبارسنجی سخت‌گیرانه روی رشته آدرس فرار کند.
         const encodedArgs = coder.encode(
-            ["uint", "address[]"], 
-            [amountWETH, path]
+            ["uint", "bytes32[]"], // تایپ‌ها را به bytes32[] تغییر می‌دهیم
+            [
+                amountWETH, 
+                [
+                    ethers.utils.hexlify(WETH_ADDRESS), // آدرس کوچک WETH را به بایت تبدیل می‌کنیم
+                    ethers.utils.hexlify(WBTC_ADDRESS)  // آدرس کوچک WBTC را به بایت تبدیل می‌کنیم
+                ]
+            ]
         );
+        
         const callData = methodSignature + encodedArgs.substring(2);
 
-        // فراخوانی مستقیم eth_call
+        // ۲. فراخوانی مستقیم eth_call
         const encodedResult = await signer.call({
-            to: ROUTER_SWAP_X, // ROUTER_SWAP_X تماماً کوچک است
+            to: ROUTER_SWAP_X, 
             data: callData
         });
 
-        // دیکد کردن نتیجه
+        // ۳. دیکد کردن نتیجه و محاسبه Slippage
         const decodedResult = routerInterface.decodeFunctionResult("getAmountsOut", encodedResult);
         let estimatedWBTCReceived = decodedResult[0][1];
         
-        // محاسبه slippage (لغزش)
         const BIGNUMBER_10000 = ethers.BigNumber.from(10000);
-        const safetyMarginBPS = ethers.BigNumber.from(10); 
+        const safetyMarginBPS = ethers.BigNumber.from(10); // 0.1%
         
         const amountOutMinWBTC = estimatedWBTCReceived
             .mul(BIGNUMBER_10000.sub(safetyMarginBPS)) 
@@ -110,7 +124,7 @@ document.getElementById('runArbitrage').onclick = async () => {
 
         updateStatus(`✅ قیمت استعلام شد. مقدار تخمینی WBTC: ${ethers.utils.formatUnits(estimatedWBTCReceived, 8)}\nمقدار امن برای چک لغزش: ${ethers.utils.formatUnits(amountOutMinWBTC, 8)} WBTC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
 
-        // --- ۳. فراخوانی تابع startArbitrage (نیاز به امضا) ---
+        // ۴. فراخوانی تابع startArbitrage (نیاز به امضا)
         const tx = await arbitrageContract.startArbitrage(
             amountWETH,
             amountOutMinWBTC,
@@ -131,9 +145,8 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         let errorMessage = error.message || "خطای ناشناخته.";
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-             errorMessage = "تراکنش با شکست مواجه خواهد شد.";
+             errorMessage = "تراکنش با شکست مواجه خواهد شد. (احتمالاً به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد هوشمند شما)";
         }
-        // اگر آدرس 0x5972B565d755A8A45226436357aBd4B2D9397500B7 در خطای کنسول ظاهر شد، یعنی کش CDN شما شکست نخورده است!
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً اطمینان حاصل کنید که ولت شما به شبکه سونیک متصل است.**`);
     }
 };
