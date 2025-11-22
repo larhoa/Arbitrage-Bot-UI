@@ -1,6 +1,7 @@
 ﻿// =======================================================================
 // === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک ===
-// 🔑 آدرس‌ها به فرم تماماً کوچک هستند تا از ایجاد Checksum در کد منبع جلوگیری شود.
+// توجه: برای اطمینان از کارکرد صحیح، در این نسخه حتی اگر اینجا کوچک باشند، 
+// در بخش encode کردن به صورت اجباری دوباره کوچک می‌شوند.
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
 const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; 
 const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
@@ -25,19 +26,18 @@ function updateStatus(message) {
 // === تابع اصلی اتصال به ولت - استفاده از window.ethers ===
 document.getElementById('connectWallet').onclick = async () => {
     
-    // ❌ تعریف const ethers = window.ethers; از اینجا حذف شده است.
-
     if (typeof window.ethereum === 'undefined') {
         updateStatus("❌ ولت (MetaMask یا Rabby) در مرورگر پیدا نشد. لطفاً نصب کنید.");
         return;
     }
-    if (typeof window.ethers === 'undefined') { // چک می‌کنیم که Ethers.js بارگذاری شده باشد
+    if (typeof window.ethers === 'undefined') {
         updateStatus("❌ خطای اتصال به ethers: کتابخانه Ethers.js در مرورگر بارگذاری نشد.");
         return;
     }
 
     try {
-        // ۱. ساخت Provider (استفاده از window.ethers)
+        // ۱. ساخت Provider
+        // ما از window.ethers استفاده می‌کنیم تا به کتابخانه‌ی بارگذاری شده از index.html دسترسی مستقیم داشته باشیم.
         const provider = new window.ethers.providers.Web3Provider(window.ethereum, 146);
         
         updateStatus("در حال درخواست اتصال به کیف پول...");
@@ -62,7 +62,6 @@ document.getElementById('connectWallet').onclick = async () => {
 // =======================================================================
 // === تابع اصلی اجرای آربیتراژ - استفاده از window.ethers ===
 document.getElementById('runArbitrage').onclick = async () => {
-    // ❌ تعریف const ethers = window.ethers; از اینجا حذف شده است.
     
     if (!signer) {
         updateStatus("لطفاً ابتدا به ولت متصل شوید.");
@@ -87,11 +86,12 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         const coder = new window.ethers.utils.AbiCoder();
         
-        // بازگشت به ABI استاندارد address[] (آدرس‌های ثابت تماماً کوچک استفاده می‌شوند)
-        const path = [WETH_ADDRESS, WBTC_ADDRESS]; 
+        // 🔑 نکته حیاتی برای رفع خطای Checksum: تبدیل اجباری به حروف کوچک در لحظه استفاده
+        const path = [WETH_ADDRESS.toLowerCase(), WBTC_ADDRESS.toLowerCase()]; 
         
+        // استفاده از تایپ صحیح "address[]"
         const encodedArgs = coder.encode(
-            ["uint", "address[]"], // استفاده از تایپ صحیح ABI
+            ["uint", "address[]"], 
             [amountWETH, path]
         );
         
@@ -140,7 +140,7 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         let errorMessage = error.message || "خطای ناشناخته.";
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-             errorMessage = "تراکنش با شکست مواجه خواهد شد.";
+             errorMessage = "تراکنش با شکست مواجه خواهد شد. (بررسی کنید که آیا قرارداد دارای موجودی WETH است؟)";
         }
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً اطمینان حاصل کنید که ولت شما به شبکه سونیک متصل است.**`);
     }
