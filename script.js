@@ -1,10 +1,10 @@
 // =======================================================================
 // === تعریف ثابت‌ها (Constants) ===
-// آدرس‌ها به حالت Checksummed اصلی خود برگردانده شدند تا با toLowerCase() در زمان استفاده استاندارد شوند.
+// 🔑 اصلاح نهایی: آدرس‌ها به صورت تماماً کوچک تعریف می‌شوند تا Ethers v5 آن‌ها را بپذیرد.
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
-const WETH_ADDRESS = "0x5972B565d755A8A45226436357aBd4B2D9397500B7";
-const WBTC_ADDRESS = "0xfDbc0D37E3d120B880b957e5025A58793B82173e";
-const ROUTER_SWAP_X = "0x0A047E2ABdF8263FC4f7C369f439e2F960A06fd9";
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; // تماماً کوچک
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; // تماماً کوچک
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; // تماماً کوچک
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -91,14 +91,13 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         const methodSignature = routerInterface.getSighash("getAmountsOut");
         
-        // 🔑 اصلاح نهایی مشکل آدرس (Checksum):
-        // آدرس‌ها را در این مرحله نهایی به حروف کوچک تبدیل می‌کنیم تا AbiCoder آن را بپذیرد.
-        const path = [WETH_ADDRESS.toLowerCase(), WBTC_ADDRESS.toLowerCase()];
+        // آدرس‌ها از قبل در ثابت‌ها کوچک شده‌اند
+        const path = [WETH_ADDRESS, WBTC_ADDRESS];
         
         const coder = new ethers.utils.AbiCoder();
         const encodedArgs = coder.encode(
             ["uint", "address[]"], 
-            [amountWETH, path]
+            [amountWETH, path] // path اکنون حاوی آدرس‌های تماماً کوچک است.
         );
         
         const callData = methodSignature + encodedArgs.substring(2);
