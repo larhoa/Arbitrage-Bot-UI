@@ -1,78 +1,82 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ربات آربیتراژ امن (Browser Signer)</title>
-    <style>
-      body {
-        font-family: Tahoma, sans-serif;
-        padding: 20px;
-        line-height: 1.6;
-      }
-      .container {
-        max-width: 800px;
-        margin: 0 auto;
-        background: #f9f9f9;
-        padding: 20px;
-        border-radius: 8px;
-      }
-      .input-group {
-        margin-bottom: 15px;
-      }
-      label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-      }
-      input[type="number"],
-      button {
-        padding: 10px;
-        width: 100%;
-        box-sizing: border-box;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-      }
-      button {
-        background-color: #4caf50;
-        color: white;
-        cursor: pointer;
-        margin-top: 10px;
-      }
-      button:hover {
-        background-color: #45a049;
-      }
-      #status {
-        margin-top: 20px;
-        padding: 15px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        white-space: pre-wrap;
-        background-color: #eee;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <h2>اجرای آربیتراژ امن (تأیید دستی با ولت) 🛡️</h2>
-      <div class="input-group">
-        <label for="amount">مقدار WETH برای وام (مثال: 0.1):</label>
-        <input type="number" id="amount" value="0.1" step="any" />
-      </div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اجرای آربیتراژ (Browser Signer)</title>
+    <style>
+        body {
+            font-family: Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
 
-      <button id="connectWallet">۱. اتصال به ولت</button>
-      <button id="runArbitrage" disabled>
-        ۲. شروع آربیتراژ (نیاز به تأیید ولت)
-      </button>
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #F9F9F9;
+            padding: 20px;
+            border-radius: 8px;
+        }
 
-      <h3>وضعیت و خروجی:</h3>
-      <pre id="status">در انتظار اتصال به کیف پول...</pre>
-    </div>
-        <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-    <script src="./arbiter-final.js?v=5"></script>
-  </body>
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input[type="number"], button {
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            background-color: #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>اجرای آربیتراژ امن (تأیید دستی با ولت)</h2>
+        
+        <div class="input-group">
+            <label for="amount">مقدار WETH برای وام (مثال: 0.1):</label>
+            <input type="number" id="amount" value="0.1" step="any" min="0">
+        </div>
+
+        <button id="connectWallet">۱. اتصال به ولت</button>
+        <button id="runArbitrage" disabled>۲. شروع آربیتراژ (نیاز به تأیید ولت)</button>
+
+        <h3>وضعیت و خروجی:</h3>
+        <pre id="status">در انتظار اتصال به کیف پول ...</pre>
+        
+        <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+        
+        <script src="./arbiter-final.js?v=6"></script>
+        
+    </div>
+</body>
 </html>
-
-
-
-
