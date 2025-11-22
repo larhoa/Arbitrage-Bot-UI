@@ -1,6 +1,10 @@
 // =======================================================================
-// === تعریف ثابت‌های قرارداد (سراسری) ===
+// === تعریف ثابت‌ها (Constants) - تعریف در سطح سراسری و تماماً کوچک ===
+// 🔑 آدرس‌ها تماماً کوچک تعریف می‌شوند تا Ethers v5 آن‌ها را بپذیرد.
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; // تماماً کوچک
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; // تماماً کوچک
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; // تماماً کوچک
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -23,17 +27,6 @@ document.getElementById('connectWallet').onclick = async () => {
     // ⚠️ اطمینان از دسترسی به Ethers v5
     const ethers = window.ethers;
     
-    // === تعریف ثابت‌های توکن در داخل بلوک ===
-    // این کار تضمین می‌کند که ethers تعریف شده و آدرس‌ها به فرم کوچک تبدیل شده‌اند
-    const WETH_ADDRESS = ethers.utils.getAddress("0x5972B565d755A8A45226436357aBd4B2D9397500B7").toLowerCase();
-    const WBTC_ADDRESS = ethers.utils.getAddress("0xfdbc0d37e3d120b880b957e5025a58793b82173e").toLowerCase();
-    const ROUTER_SWAP_X = ethers.utils.getAddress("0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9").toLowerCase();
-    
-    // --- ذخیره کردن آدرس‌های کوچک شده در Storage موقت مرورگر ---
-    localStorage.setItem('WETH_ADDRESS', WETH_ADDRESS);
-    localStorage.setItem('WBTC_ADDRESS', WBTC_ADDRESS);
-    localStorage.setItem('ROUTER_SWAP_X', ROUTER_SWAP_X);
-
     if (typeof window.ethereum === 'undefined') {
         updateStatus("❌ ولت (MetaMask یا Rabby) در مرورگر پیدا نشد. لطفاً نصب کنید.");
         return;
@@ -49,7 +42,8 @@ document.getElementById('connectWallet').onclick = async () => {
         
         // ۲. درخواست اتصال حساب‌ها
         updateStatus("در حال درخواست اتصال به کیف پول...");
-        await provider.send("eth_requestAccounts", []);
+        // Rabby ممکن است این درخواست را نادیده بگیرد اگر قبلاً متصل شده باشد، که طبیعی است.
+        await provider.send("eth_requestAccounts", []); 
         
         // ۳. دریافت امضاکننده (Signer)
         signer = provider.getSigner();
@@ -75,12 +69,7 @@ document.getElementById('runArbitrage').onclick = async () => {
     // ⚠️ اطمینان از دسترسی به Ethers v5
     const ethers = window.ethers;
     
-    // --- بازیابی آدرس‌های کوچک شده از Storage موقت مرورگر ---
-    const WETH_ADDRESS = localStorage.getItem('WETH_ADDRESS');
-    const WBTC_ADDRESS = localStorage.getItem('WBTC_ADDRESS');
-    const ROUTER_SWAP_X = localStorage.getItem('ROUTER_SWAP_X');
-
-    if (!signer || !WETH_ADDRESS) {
+    if (!signer) {
         updateStatus("لطفاً ابتدا به ولت متصل شوید.");
         return;
     }
@@ -103,13 +92,13 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         const methodSignature = routerInterface.getSighash("getAmountsOut");
         
-        // آدرس‌ها از قبل در ثابت‌ها کوچک شده‌اند
+        // آدرس‌ها تماماً کوچک و در دسترس هستند
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
         
         const coder = new ethers.utils.AbiCoder();
         const encodedArgs = coder.encode(
             ["uint", "address[]"], 
-            [amountWETH, path] // path اکنون حاوی آدرس‌های تماماً کوچک است.
+            [amountWETH, path]
         );
         
         const callData = methodSignature + encodedArgs.substring(2);
