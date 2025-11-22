@@ -1,12 +1,11 @@
 ﻿// =======================================================================
-// === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک ===
-// این بار مطمئن می‌شویم که حتی یک حرف بزرگ هم در اینجا وجود ندارد.
-const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; // باید تماماً کوچک باشد
-const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
-const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; 
-
-// ... بقیه کد (که در پیام قبلی برایتان ارسال کردم و شامل toLowerCase() بود) 
+// === تعریف ثابت‌ها (Constants) - نسخه نهایی ===
+// حذف 0x برای آدرس‌هایی که باعث خطای Checksum می‌شوند.
+const CONTRACT_ADDRESS = "47231c27658704602f23f5b08b51e2a0494457ab"; // بدون 0x
+const WETH_ADDRESS = "5972b565d755a8a45226436357abd4b2d9397500b7"; // بدون 0x
+const WBTC_ADDRESS = "fdbc0d37e3d120b880b957e5025a58793b82173e"; // بدون 0x
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; // این آدرس باید 0x داشته باشد
+// ... بقیه کد (کدهای قبلی که شامل window.ethers و toLowerCase() بودند، باقی می‌مانند)
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
