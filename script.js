@@ -37,8 +37,8 @@ document.getElementById('connectWallet').onclick = async () => {
         // ۱. اتصال به Provider تزریق شده (کیف پول)
         provider = new ethers.BrowserProvider(window.ethereum);
         
-        // **اصلاح نهایی و دقیق برای شبکه سونیک:** استفاده از PublicNode مخصوص سونیک
-        const SONIC_RPC_URL = "https://sonic.publicnode.com"; // RPC عمومی و پایدار سونیک
+        // **اصلاح نهایی و پایدار:** استفاده از RPC عمومی و تست شده Fantom/Ankr
+        const SONIC_RPC_URL = "https://rpc.ankr.com/fantom"; 
         routerProvider = new ethers.JsonRpcProvider(SONIC_RPC_URL);
 
 // ... (بقیه کد)
@@ -138,5 +138,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nمطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است.`);
     }
 };
+
 
 
