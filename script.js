@@ -1,8 +1,10 @@
-﻿// تعریف ثابت‌های قرارداد و توکن‌ها (از Deploy Remix)
-const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
-const WETH_ADDRESS = "0x5972B565d755A8A4526543b57A94D480397500B7"; 
-const WBTC_ADDRESS = "0xfdbc0d37e3d120B880b957e5025a58793b82173E"; 
-const ROUTER_SWAP_X = "0x0A047e2aBdf8263FC4F7C369F439E2F960A06FD9"; 
+// تعریف ثابت‌های قرارداد و توکن‌ها
+// **اصلاح:** تمام آدرس‌ها به حروف کوچک تبدیل شدند تا مشکل Checksum در ethers v6 حل شود.
+
+const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e".toLowerCase();
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9".toLowerCase();
 
 // ABI فقط برای توابع مورد نیاز (حجم فایل را کم می‌کند)
 const ARBITRAGE_ABI = [
@@ -30,11 +32,12 @@ document.getElementById('connectWallet').onclick = async () => {
 
     try {
         // ۱. اتصال به Provider تزریق شده (کیف پول)
+        // **نکته:** ethers.BrowserProvider برای ولت‌های تزریقی استاندارد است.
         provider = new ethers.BrowserProvider(window.ethereum);
         
         // ۲. درخواست اتصال حساب‌ها
         updateStatus("در حال درخواست اتصال به کیف پول...");
-        await provider.send("eth_requestAccounts", []); 
+        await provider.send("eth_requestAccounts", []);
         
         // ۳. دریافت امضاکننده (Signer)
         signer = await provider.getSigner();
@@ -42,13 +45,15 @@ document.getElementById('connectWallet').onclick = async () => {
         // ۴. ساختن اینترفیس‌های قرارداد
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer);
         // روتر را فقط برای استعلام قیمت (بدون نیاز به امضا) با provider می‌سازیم
-        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, provider); 
+        routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, provider);
 
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nشما در حال استفاده از شبکه Arbitrum One هستید.`);
         document.getElementById('runArbitrage').disabled = false;
         document.getElementById('connectWallet').disabled = true;
 
     } catch (error) {
+        // برای نمایش خطای دقیق‌تر در کنسول
+        console.error("Wallet connection failed:", error);
         updateStatus(`❌ خطای اتصال به ولت: ${error.message}`);
     }
 };
@@ -62,8 +67,13 @@ document.getElementById('runArbitrage').onclick = async () => {
 
     try {
         const amountDecimal = document.getElementById('amount').value;
+        if (!amountDecimal || isNaN(amountDecimal) || Number(amountDecimal) <= 0) {
+            updateStatus("❌ لطفاً یک مقدار معتبر برای وام وارد کنید.");
+            return;
+        }
+
         // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار)
-        const amountWETH = ethers.parseUnits(amountDecimal, 18); 
+        const amountWETH = ethers.parseUnits(amountDecimal, 18);
         
         // --- ۱. استعلام قیمت لحظه‌ای (برای محاسبه estimatedWBTCReceived) ---
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC...");
@@ -75,14 +85,14 @@ document.getElementById('runArbitrage').onclick = async () => {
         // amountsOut[1] مقدار WBTC دریافتی است
         let estimatedWBTCReceived = amountsOut[1];
         
-        // برای امنیت بیشتر، یک مارجین کوچک (مثلاً 0.1%) کم می‌کنیم تا لغزش کوچک باعث شکست نشود
-        // 10000 = 100%، پس 9999/10000 یعنی 0.01% لغزش مجاز
-        const safetyMarginBPS = 10; // 0.1% = 10 basis points
-        const amountOutMinWBTC = (estimatedWBTCReceived * BigInt(10000 - safetyMarginBPS)) / BigInt(10000);
+        // **اصلاح منطق:** محاسبه slippage (لغزش)
+        // 10000 = 100%، safetyMarginBPS = 10 (0.1%)
+        const safetyMarginBPS = 10n; // 0.1% = 10 basis points (استفاده از BigInt برای محاسبات)
+        const amountOutMinWBTC = (estimatedWBTCReceived * (10000n - safetyMarginBPS)) / 10000n;
 
         // --- ۲. تنظیم ددلاین ---
         // ددلاین را 60 ثانیه در آینده قرار می‌دهیم
-        const deadline = Math.floor(Date.now() / 1000) + 60; 
+        const deadline = Math.floor(Date.now() / 1000) + 60;
 
         updateStatus(`✅ قیمت استعلام شد. مقدار تخمینی WBTC: ${ethers.formatUnits(estimatedWBTCReceived, 8)}\nمقدار امن برای چک لغزش: ${ethers.formatUnits(amountOutMinWBTC, 8)} WBTC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
 
@@ -91,20 +101,26 @@ document.getElementById('runArbitrage').onclick = async () => {
             amountWETH,
             amountOutMinWBTC, // از مقدار امن برای estimatedWBTCReceived استفاده می‌کنیم
             deadline,
-            { 
-                gasLimit: 3000000, 
+            {
+                gasLimit: 3000000,
             }
         );
 
         updateStatus(`🔔 تراکنش ارسال شد: ${tx.hash}\nدر انتظار تأیید شدن بلاک...`);
         
         // صبر کردن برای تأیید تراکنش
-        await tx.wait(); 
+        await tx.wait();
         
         updateStatus(`🚀 عملیات آربیتراژ با موفقیت انجام شد!\nهش تراکنش: ${tx.hash}`);
 
     } catch (error) {
-        console.error(error);
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${error.message || "خطای ناشناخته. مطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است."}`);
+        // نمایش خطای دقیق در کنسول و نمایش پیام دوستانه
+        console.error("Arbitrage execution failed:", error);
+        // بهبود پیام خطا برای نمایش پیغام‌های دقیق‌تر ethers
+        let errorMessage = error.message || "خطای ناشناخته.";
+        if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+             errorMessage = "تراکنش با شکست مواجه خواهد شد. (ممکن است به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد باشد)";
+        }
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nمطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است.`);
     }
 };
