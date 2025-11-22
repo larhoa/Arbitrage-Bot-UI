@@ -37,8 +37,8 @@ document.getElementById('connectWallet').onclick = async () => {
         // ۱. اتصال به Provider تزریق شده (کیف پول)
         provider = new ethers.BrowserProvider(window.ethereum);
         
-        // **اصلاح نهایی:** جایگزینی RPC برای رفع خطای ERR_NAME_NOT_RESOLVED (K31)
-        const SONIC_RPC_URL = "https://rpc.ftm.tools/"; // RPC عمومی و پایدار برای Fantom/Sonic
+        // **اصلاح نهایی و دقیق برای شبکه سونیک:** استفاده از PublicNode مخصوص سونیک
+        const SONIC_RPC_URL = "https://sonic.publicnode.com"; // RPC عمومی و پایدار سونیک
         routerProvider = new ethers.JsonRpcProvider(SONIC_RPC_URL);
 
 // ... (بقیه کد)
@@ -138,4 +138,5 @@ document.getElementById('runArbitrage').onclick = async () => {
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nمطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است.`);
     }
 };
+
 
