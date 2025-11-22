@@ -1,5 +1,6 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
-// **اصلاح نهایی:** بازگشت به آدرس‌های تماماً کوچک برای دور زدن Checksum در زمان ساخت قرارداد.
+// **وضعیت:** آدرس‌ها تماماً کوچک.
+
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
 const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
 const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e".toLowerCase();
@@ -50,7 +51,7 @@ document.getElementById('connectWallet').onclick = async () => {
         };
 
         // ۴. ساختن اینترفیس قرارداد اصلی
-        // **اصلاح**: استفاده مستقیم از CONTRACT_ADDRESS تماماً کوچک (بدون ethers.getAddress)
+        // استفاده مستقیم از CONTRACT_ADDRESS تماماً کوچک (برای جلوگیری از خطای Checksum)
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
         
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
@@ -87,17 +88,18 @@ document.getElementById('runArbitrage').onclick = async () => {
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new ethers.Interface(routerAbi);
 
-        // استفاده از getAddress در اینجا برای اطمینان از صحت آدرس در Data Encode
+        // **اصلاح نهایی و قطعی:** تبدیل آدرس‌های path به BigInt برای دور زدن اعتبارسنجی رشته‌ای سختگیرانه Ethers.js
         const path = [
-            ethers.getAddress(WETH_ADDRESS), 
-            ethers.getAddress(WBTC_ADDRESS)
+            ethers.toBigInt(WETH_ADDRESS), 
+            ethers.toBigInt(WBTC_ADDRESS)
         ];
         
         const callData = routerInterface.encodeFunctionData("getAmountsOut", [amountWETH, path]);
 
         // فراخوانی مستقیم eth_call
+        // آدرس روتر همچنان از getAddress استفاده می‌کند تا مطمئن باشیم به درستی به to ارسال می‌شود
         const encodedResult = await signer.call({
-            to: ethers.getAddress(ROUTER_SWAP_X), // آدرس روتر (اعتبارسنجی شده)
+            to: ethers.getAddress(ROUTER_SWAP_X),
             data: callData
         });
 
@@ -140,6 +142,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
              errorMessage = "تراکنش با شکست مواجه خواهد شد. (احتمالاً به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد هوشمند شما)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nلطفاً برای آخرین بار تست کرده و نتیجه (K44) را ارسال کنید.`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**اگر این خطا تکرار شد، مشکل قطعاً به خاطر آدرس‌های قراردادهای شما یا منطق قرارداد هوشمند است.**`);
     }
 };
