@@ -22,14 +22,22 @@ function updateStatus(message) {
 
 // --- تابع اصلی اتصال به ولت ---
 document.getElementById('connectWallet').onclick = async () => {
+    // ⚠️ اصلاح مهم: استفاده از window.ethers برای اطمینان از دسترسی به شیء Ethers v5 از CDN
+    const ethers = window.ethers; 
+    
     if (typeof window.ethereum === 'undefined') {
         updateStatus("❌ ولت (MetaMask یا Rabby) در مرورگر پیدا نشد. لطفاً نصب کنید.");
         return;
     }
+    if (typeof ethers === 'undefined') {
+        updateStatus("❌ خطای اتصال به ethers: کتابخانه Ethers.js در مرورگر بارگذاری نشد.");
+        return;
+    }
+
 
     try {
         // ۱. ساخت Provider با استفاده از Web3Provider (سازگار با Ethers v5)
-        // چین آیدی سونیک: 146 (0x92)
+        // چین آیدی سونیک: 146
         const provider = new ethers.providers.Web3Provider(window.ethereum, 146);
         
         // ۲. درخواست اتصال حساب‌ها
@@ -39,7 +47,7 @@ document.getElementById('connectWallet').onclick = async () => {
         // ۳. دریافت امضاکننده (Signer)
         signer = provider.getSigner();
         
-        // ۴. ساختن اینترفیس قرارداد اصلی (در v5 آدرس ENS به‌طور خودکار بررسی نمی‌شود)
+        // ۴. ساختن اینترفیس قرارداد اصلی
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer);
         
         // دریافت آدرس امضاکننده
@@ -57,6 +65,9 @@ document.getElementById('connectWallet').onclick = async () => {
 
 // --- تابع اصلی اجرای آربیتراژ ---
 document.getElementById('runArbitrage').onclick = async () => {
+    // ⚠️ اصلاح مهم: استفاده از window.ethers برای اطمینان از دسترسی به شیء Ethers v5 از CDN
+    const ethers = window.ethers; 
+    
     if (!signer) {
         updateStatus("لطفاً ابتدا به ولت متصل شوید.");
         return;
@@ -69,7 +80,7 @@ document.getElementById('runArbitrage').onclick = async () => {
             return;
         }
 
-        // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار) (استفاده از utils در v5)
+        // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار)
         const amountWETH = ethers.utils.parseUnits(amountDecimal, 18);
         
         // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call) ---
@@ -80,13 +91,13 @@ document.getElementById('runArbitrage').onclick = async () => {
         const routerInterface = new ethers.utils.Interface(routerAbi);
         
         // امضای متد (Method Signature) برای getAmountsOut
-        const methodSignature = routerInterface.getSighash("getAmountsOut"); // در v5 از getSighash استفاده می‌شود
+        const methodSignature = routerInterface.getSighash("getAmountsOut");
         
         // آدرس‌های Path (تماماً کوچک)
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
         
         // استفاده از AbiCoder برای دور زدن اعتبارسنجی سختگیرانه Ethers.js
-        const coder = new ethers.utils.AbiCoder(); // در v5
+        const coder = new ethers.utils.AbiCoder();
         const encodedArgs = coder.encode(
             ["uint", "address[]"], 
             [amountWETH, path]
@@ -108,7 +119,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         let estimatedWBTCReceived = decodedResult[0][1];
         
         // محاسبه slippage (لغزش)
-        // در v5 نیاز به BigInt نیست، از Bignumber استفاده می‌کنیم، اما چون parseUnits و سایر مقادیر نهایی BigNumber هستند، منطق محاسباتی را با BigNumber حفظ می‌کنیم.
         const BIGNUMBER_10000 = ethers.BigNumber.from(10000);
         const safetyMarginBPS = ethers.BigNumber.from(10); // 0.1% = 10 basis points
         
