@@ -1,5 +1,5 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
-// **بازگشت به آدرس‌های تماماً کوچک (Lowercase)**
+// آدرس‌های تماماً کوچک (Lowercase)
 
 const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
 const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
@@ -28,32 +28,24 @@ document.getElementById('connectWallet').onclick = async () => {
     }
 
     try {
-        // تعریف دستی شبکه سونیک با ChainID 146 و ENS غیرفعال
-        const sonicNetwork = new ethers.Network(
-            "Sonic Mainnet",
-            146
-        );
-        sonicNetwork.ensAddress = null; // غیرفعال‌سازی قطعی سرویس ENS
-
-        // ۱. ساخت Provider با استفاده از Network تعریف شده
-        const customProvider = new ethers.BrowserProvider(window.ethereum, sonicNetwork);
+        // ۱. ساخت Provider با استفاده از Web3Provider (سازگار با Ethers v5)
+        // چین آیدی سونیک: 146 (0x92)
+        const provider = new ethers.providers.Web3Provider(window.ethereum, 146);
         
         // ۲. درخواست اتصال حساب‌ها
         updateStatus("در حال درخواست اتصال به کیف پول...");
-        await customProvider.send("eth_requestAccounts", []);
+        await provider.send("eth_requestAccounts", []);
         
         // ۳. دریافت امضاکننده (Signer)
-        signer = await customProvider.getSigner();
+        signer = provider.getSigner();
         
-        // تنظیمات قرارداد
-        const contractOptions = {
-            ens: null 
-        };
-
-        // ۴. ساختن اینترفیس قرارداد اصلی
-        arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
+        // ۴. ساختن اینترفیس قرارداد اصلی (در v5 آدرس ENS به‌طور خودکار بررسی نمی‌شود)
+        arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer);
         
-        updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
+        // دریافت آدرس امضاکننده
+        const signerAddress = await signer.getAddress();
+        
+        updateStatus(`✅ اتصال موفق. آدرس شما: ${signerAddress}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
         document.getElementById('runArbitrage').disabled = false;
         document.getElementById('connectWallet').disabled = true;
 
@@ -77,24 +69,24 @@ document.getElementById('runArbitrage').onclick = async () => {
             return;
         }
 
-        // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار)
-        const amountWETH = ethers.parseUnits(amountDecimal, 18);
+        // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار) (استفاده از utils در v5)
+        const amountWETH = ethers.utils.parseUnits(amountDecimal, 18);
         
         // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call) ---
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC از طریق فراخوانی خام ولت...");
 
         // ساختن داده‌های فراخوانی برای getAmountsOut
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
-        const routerInterface = new ethers.Interface(routerAbi);
+        const routerInterface = new ethers.utils.Interface(routerAbi);
         
         // امضای متد (Method Signature) برای getAmountsOut
-        const methodSignature = routerInterface.getFunction("getAmountsOut").selector; // 0xd7b4f307
+        const methodSignature = routerInterface.getSighash("getAmountsOut"); // در v5 از getSighash استفاده می‌شود
         
         // آدرس‌های Path (تماماً کوچک)
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
         
-        // **اصلاح نهایی و قطعی:** استفاده از AbiCoder برای دور زدن اعتبارسنجی سختگیرانه Ethers.js
-        const coder = ethers.AbiCoder.defaultAbiCoder();
+        // استفاده از AbiCoder برای دور زدن اعتبارسنجی سختگیرانه Ethers.js
+        const coder = new ethers.utils.AbiCoder(); // در v5
         const encodedArgs = coder.encode(
             ["uint", "address[]"], 
             [amountWETH, path]
@@ -116,13 +108,18 @@ document.getElementById('runArbitrage').onclick = async () => {
         let estimatedWBTCReceived = decodedResult[0][1];
         
         // محاسبه slippage (لغزش)
-        const safetyMarginBPS = 10n; // 0.1% = 10 basis points
-        const amountOutMinWBTC = (estimatedWBTCReceived * (10000n - safetyMarginBPS)) / 10000n;
+        // در v5 نیاز به BigInt نیست، از Bignumber استفاده می‌کنیم، اما چون parseUnits و سایر مقادیر نهایی BigNumber هستند، منطق محاسباتی را با BigNumber حفظ می‌کنیم.
+        const BIGNUMBER_10000 = ethers.BigNumber.from(10000);
+        const safetyMarginBPS = ethers.BigNumber.from(10); // 0.1% = 10 basis points
+        
+        const amountOutMinWBTC = estimatedWBTCReceived
+            .mul(BIGNUMBER_10000.sub(safetyMarginBPS)) // ضرب در (10000 - 10)
+            .div(BIGNUMBER_10000); // تقسیم بر 10000
 
         // --- ۲. تنظیم ددلاین ---
         const deadline = Math.floor(Date.now() / 1000) + 60;
 
-        updateStatus(`✅ قیمت استعلام شد. مقدار تخمینی WBTC: ${ethers.formatUnits(estimatedWBTCReceived, 8)}\nمقدار امن برای چک لغزش: ${ethers.formatUnits(amountOutMinWBTC, 8)} WBTC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
+        updateStatus(`✅ قیمت استعلام شد. مقدار تخمینی WBTC: ${ethers.utils.formatUnits(estimatedWBTCReceived, 8)}\nمقدار امن برای چک لغزش: ${ethers.utils.formatUnits(amountOutMinWBTC, 8)} WBTC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
 
         // --- ۳. فراخوانی تابع startArbitrage (نیاز به امضا) ---
         const tx = await arbitrageContract.startArbitrage(
@@ -148,6 +145,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
              errorMessage = "تراکنش با شکست مواجه خواهد شد. (احتمالاً به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد هوشمند شما)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**اگر این خطا تکرار شد، مشکل قطعاً به خاطر آدرس‌های قراردادهای شما یا منطق قرارداد هوشمند است.**`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً اطمینان حاصل کنید که ولت شما به شبکه سونیک متصل است.**`);
     }
 };
