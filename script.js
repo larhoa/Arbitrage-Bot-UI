@@ -13,7 +13,6 @@ const ARBITRAGE_ABI = [
 ];
 
 // متغیرهای Ethers
-let provider; // Provider تزریق شده توسط ولت
 let signer; // امضاکننده
 let arbitrageContract; // قرارداد اصلی (نیاز به امضا)
 let routerSwapX; // روتر استعلام قیمت (از Signer استفاده می‌کند)
@@ -31,26 +30,31 @@ document.getElementById('connectWallet').onclick = async () => {
     }
 
     try {
-        // ۱. اتصال به Provider تزریق شده (کیف پول)
-        provider = new ethers.BrowserProvider(window.ethereum);
+        // **اصلاح کلیدی نهایی:** تعریف دستی شبکه سونیک با ChainID 146 و ENS غیرفعال
+        const sonicNetwork = new ethers.Network(
+            "Sonic Mainnet", // نام شبکه
+            146 // ChainID شبکه سونیک (معادل 0x92)
+        );
+        sonicNetwork.ensAddress = null; // **غیرفعال‌سازی قطعی سرویس ENS**
+
+        // ۱. ساخت Provider با استفاده از Network تعریف شده برای جلوگیری از خطای ENS
+        const customProvider = new ethers.BrowserProvider(window.ethereum, sonicNetwork);
         
         // ۲. درخواست اتصال حساب‌ها
         updateStatus("در حال درخواست اتصال به کیف پول...");
-        await provider.send("eth_requestAccounts", []);
+        await customProvider.send("eth_requestAccounts", []);
         
         // ۳. دریافت امضاکننده (Signer)
-        signer = await provider.getSigner();
+        signer = await customProvider.getSigner();
         
-        // **تنظیم کلیدی:** غیرفعال کردن چک ENS برای رفع خطای UNSUPPORTED_OPERATION
+        // تنظیمات قرارداد (آپشن ens: null در اینجا اختیاری است اما حفظ می‌شود)
         const contractOptions = {
             ens: null 
         };
 
         // ۴. ساختن اینترفیس‌های قرارداد
-        // قرارداد اصلی آربیتراژ از signer ولت استفاده می‌کند.
+        // قراردادها از signer ولت استفاده می‌کنند تا از RPC داخلی ولت استفاده شود.
         arbitrageContract = new ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer, contractOptions);
-        
-        // **تغییر نهایی:** روتر استعلام قیمت نیز از 'signer' استفاده می‌کند تا مشکل RPC/ENS حل شود.
         routerSwapX = new ethers.Contract(ROUTER_SWAP_X, ARBITRAGE_ABI, signer, contractOptions); 
 
         updateStatus(`✅ اتصال موفق. آدرس شما: ${signer.address}\nلطفاً مطمئن شوید ولت شما به شبکه سونیک متصل است.`);
@@ -81,7 +85,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         const amountWETH = ethers.parseUnits(amountDecimal, 18);
         
         // --- ۱. استعلام قیمت لحظه‌ای (برای محاسبه estimatedWBTCReceived) ---
-        // این فراخوانی اکنون از signer ولت استفاده می‌کند.
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC...");
 
         const path = [WETH_ADDRESS, WBTC_ADDRESS];
