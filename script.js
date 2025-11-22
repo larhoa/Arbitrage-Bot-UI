@@ -1,10 +1,10 @@
 // تعریف ثابت‌های قرارداد و توکن‌ها
-// **وضعیت:** آدرس‌ها به فرمت استاندارد EIP-55 برگشت داده شدند تا مشکل INVALID_ARGUMENT در Ethers.js رفع شود.
+// **وضعیت:** آدرس‌ها به حروف کوچک برگشت داده شدند. اعتبار سنجی EIP-55 با استفاده از ethers.getAddress در زمان اجرا انجام خواهد شد.
 
-const CONTRACT_ADDRESS = "0x47231c27658704602F23f5b08b51e2a0494457AB";
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357Abd4b2d9397500B7";
-const WBTC_ADDRESS = "0xfDBC0D37e3d120B880b957E5025A58793B82173E";
-const ROUTER_SWAP_X = "0x0A047E2abDF8263Fc4F7C369f439e2F960a06FD9";
+const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab".toLowerCase();
+const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7".toLowerCase();
+const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e".toLowerCase();
+const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9".toLowerCase();
 
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
@@ -80,19 +80,24 @@ document.getElementById('runArbitrage').onclick = async () => {
         // تبدیل مقدار اعشاری WETH به واحد Wei (18 رقم اعشار)
         const amountWETH = ethers.parseUnits(amountDecimal, 18);
         
-        // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call برای دور زدن ENS) ---
+        // --- ۱. استعلام قیمت لحظه‌ای (با فراخوانی خام eth_call) ---
         updateStatus("در حال استعلام قیمت لحظه‌ای WETH -> WBTC از طریق فراخوانی خام ولت...");
 
         // ساختن داده‌های فراخوانی برای getAmountsOut
         const routerAbi = ["function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)"];
         const routerInterface = new ethers.Interface(routerAbi);
 
-        const path = [WETH_ADDRESS, WBTC_ADDRESS];
+        // **اصلاح نهایی**: اجبار آدرس‌ها به فرمت EIP-55 برای رفع خطای Invalid Address
+        const path = [
+            ethers.getAddress(WETH_ADDRESS), 
+            ethers.getAddress(WBTC_ADDRESS)
+        ];
+        
         const callData = routerInterface.encodeFunctionData("getAmountsOut", [amountWETH, path]);
 
         // فراخوانی مستقیم eth_call
         const encodedResult = await signer.call({
-            to: ROUTER_SWAP_X, // آدرس روتر
+            to: ethers.getAddress(ROUTER_SWAP_X), // آدرس روتر (اعتبارسنجی شده)
             data: callData
         });
 
@@ -135,6 +140,6 @@ document.getElementById('runArbitrage').onclick = async () => {
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
              errorMessage = "تراکنش با شکست مواجه خواهد شد. (ممکن است به دلیل لغزش بالا، موجودی ناکافی یا خطا در منطق قرارداد باشد)";
         }
-        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nاکنون تمام مشکلات زیرساختی رفع شده‌اند. مشکل بعدی از قرارداد هوشمند یا موجودی ولت شماست.`);
+        updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nلطفاً برای آخرین بار تست کرده و نتیجه (K41) را ارسال کنید.`);
     }
 };
