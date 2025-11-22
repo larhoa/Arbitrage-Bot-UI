@@ -31,14 +31,17 @@ document.getElementById('connectWallet').onclick = async () => {
         return;
     }
 
+    // ... (داخل document.getElementById('connectWallet').onclick)
+
     try {
         // ۱. اتصال به Provider تزریق شده (کیف پول)
         provider = new ethers.BrowserProvider(window.ethereum);
         
-        // **اصلاح کلیدی برای رفع خطای ENS/Network در شبکه سونیک (ChainID: 146):**
-        // از یک JsonRpcProvider اختصاصی برای استعلام قیمت استفاده می‌کنیم.
-        const SONIC_RPC_URL = "https://sonic-rpc.grove.city/v1/01fdb0492"; // RPC از ChainList
+        // **اصلاح نهایی:** جایگزینی RPC برای رفع خطای ERR_NAME_NOT_RESOLVED (K31)
+        const SONIC_RPC_URL = "https://rpc.ftm.tools/"; // RPC عمومی و پایدار برای Fantom/Sonic
         routerProvider = new ethers.JsonRpcProvider(SONIC_RPC_URL);
+
+// ... (بقیه کد)
 
         // ۲. درخواست اتصال حساب‌ها
         updateStatus("در حال درخواست اتصال به کیف پول...");
@@ -135,3 +138,4 @@ document.getElementById('runArbitrage').onclick = async () => {
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\nمطمئن شوید که آدرس‌ها و موجودی گس ولت صحیح است.`);
     }
 };
+
