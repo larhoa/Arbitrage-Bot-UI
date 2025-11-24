@@ -1,12 +1,11 @@
 ﻿// =======================================================================
 // === تعریف ثابت‌ها (Constants) - آدرس‌های اصلی تماماً کوچک و شامل 0x ===
-// این نسخه آدرس‌ها را به صورت استاندارد تعریف می‌کند، اما در زمان استفاده (Encode)، 
-// به صورت دفاعی آن‌ها را به حروف کوچک تبدیل می‌کنیم تا خطای Checksum را دور بزنیم.
-const CONTRACT_ADDRESS = "0x47231c27658704602f23f5b08b51e2a0494457ab"; 
-const WETH_ADDRESS = "0x5972b565d755a8a45226436357abd4b2d9397500b7"; 
-const WBTC_ADDRESS = "0xfdbc0d37e3d120b880b957e5025a58793b82173e"; 
-const ROUTER_SWAP_X = "0x0a047e2abdf8263fc4f7c369f439e2f960a06fd9"; 
-
+// ...
+const CONTRACT_ADDRESS = "0xB0847D213717D2E2AF1cbAFcAAE821466643675D"; 
+const WETH_ADDRESS = "0x50c42dEAcD8Fc9773493ED674b675bE577f2634b"; 
+const WBTC_ADDRESS = "0x0555E30da8f98308EdB960aa94C0Db47230d2B9c"; 
+const ROUTER_SWAP_X = "0xA047e2AbF8263FcA7c368F43e2f960A06FD9949f"; 
+// ...
 // ABI فقط برای توابع مورد نیاز
 const ARBITRAGE_ABI = [
     "function startArbitrage(uint128 amountWETH, uint256 estimatedWBTCReceived, uint256 deadline)"
