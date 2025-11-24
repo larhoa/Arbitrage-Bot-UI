@@ -2,12 +2,17 @@
 // === تعریف ثابت‌ها (Constants) - شبکه Sonic ===
 // **توجه:** آدرس‌ها بر اساس آخرین تأیید شما به‌روزرسانی شده‌اند.
 const CONTRACT_ADDRESS = "0xab5a031ca0491fce7df348f9a4dfed0410a7a7b5"; // آدرس قرارداد دیپلوی شده شما
-const WETH_ADDRESS = "0x50c42dEAcD8Fc9773493ED674b675bE577f2634b"; // WETH
+const WETH_ADDRESS = "0x50c42dEAcD8Fc9773493ED674b675bE577f2634b"; // WETH (18 decimals)
 const USDC_ADDRESS = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"; // USDC
-const ROUTER_SWAP_X = "0xa047e2abf8263fca7c368f43e2f960a06fd9949f"; // روتر SwapX (تماماً کوچک برای جلوگیری از خطای Checksum)
+const ROUTER_SWAP_X = "0xa047e2abf8263fca7c368f43e2f960a06fd9949f"; // روتر SwapX (تماماً کوچک)
 const USDC_DECIMALS = 6; // دکیمال USDC در شبکه Sonic
 
-// ABI اصلاح شده
+// نرخ تقریبی لحظه‌ای (باید بر اساس قیمت فعلی WETH/USDC تنظیم شود)
+// بر اساس آخرین داده‌ها (1 WETH ≈ 2835 USDC)
+const CURRENT_WETH_TO_USDC_RATE = 2835; 
+const SLIPPAGE_TOLERANCE_PERCENT = 0.5; // 0.5% لغزش قابل قبول
+
+// ABI اصلاح شده برای startArbitrage
 const ARBITRAGE_ABI = [
     "function startArbitrage(uint128 amountWETH, uint256 estimatedUSDCReceived, uint256 deadline)"
 ];
@@ -36,14 +41,12 @@ document.getElementById('connectWallet').onclick = async () => {
     }
 
     try {
-        // ساخت Provider (باید به شبکه Sonic متصل باشد)
         const provider = new window.ethers.providers.Web3Provider(window.ethereum);
         
         updateStatus("در حال درخواست اتصال به کیف پول...");
         await provider.send("eth_requestAccounts", []); 
         signer = provider.getSigner();
         
-        // ساختن اینترفیس قرارداد اصلی
         arbitrageContract = new window.ethers.Contract(CONTRACT_ADDRESS, ARBITRAGE_ABI, signer); 
         
         const signerAddress = await signer.getAddress();
@@ -59,7 +62,7 @@ document.getElementById('connectWallet').onclick = async () => {
 };
 
 // =======================================================================
-// === تابع اصلی اجرای آربیتراژ (بایپس شده) ===
+// === تابع اصلی اجرای آربیتراژ (با حفاظت سخت‌کد شده) ===
 document.getElementById('runArbitrage').onclick = async () => {
     
     if (!signer) {
@@ -76,21 +79,31 @@ document.getElementById('runArbitrage').onclick = async () => {
 
         const amountWETH = window.ethers.utils.parseUnits(amountDecimal, 18);
         
-        // ***************************************************************
-        // *** بایپس مرحله استعلام قیمت (signer.call) به دلیل خطای روتر ***
-        // ***************************************************************
+        // *******************************************************************
+        // *** محاسبه مقدار خروجی حداقل (amountOutMinUSDC) به صورت سخت‌کد شده ***
+        // *******************************************************************
+        
+        // ۱. محاسبه مقدار USDC مورد انتظار (بدون در نظر گرفتن لغزش)
+        const expectedUSDC = amountDecimal * CURRENT_WETH_TO_USDC_RATE;
+        
+        // ۲. اعمال فاکتور لغزش
+        const slippageFactor = 1 - (SLIPPAGE_TOLERANCE_PERCENT / 100); 
+        const amountOutMinDecimal = expectedUSDC * slippageFactor;
         
-        // ⚠️ برای تست جریان اجرای قرارداد، مقدار حداقل را روی صفر تنظیم می‌کنیم.
-        // این یعنی حفاظت در برابر لغزش در سطح فرانت‌اند غیرفعال است.
-        const amountOutMinUSDC = window.ethers.BigNumber.from(0); 
-        const deadline = Math.floor(Date.now() / 1000) + 60;
-
-        updateStatus(`⚠️ استعلام قیمت به دلیل خطای روتر بایپس شد. مقدار حداقل USDC: صفر. \n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
+        // ۳. تبدیل به فرمت BigNumber با 6 دکیمال USDC
+        const amountOutMinUSDC = window.ethers.utils.parseUnits(
+            amountOutMinDecimal.toFixed(USDC_DECIMALS), // اطمینان از 6 رقم اعشار USDC
+            USDC_DECIMALS 
+        );
+        
+        const deadline = Math.floor(Date.now() / 1000) + 60; // 60 ثانیه زمان انقضا
+        
+        updateStatus(`⚠️ استعلام قیمت بایپس شد. حداقل USDC مورد نیاز (لغزش ${SLIPPAGE_TOLERANCE_PERCENT}%): ${window.ethers.utils.formatUnits(amountOutMinUSDC, USDC_DECIMALS)} USDC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
 
         // ۴. فراخوانی تابع startArbitrage (نیاز به امضا)
         const tx = await arbitrageContract.startArbitrage(
             amountWETH,
-            amountOutMinUSDC, // مقدار صفر برای تست
+            amountOutMinUSDC, 
             deadline,
             {
                 gasLimit: 3000000,
@@ -107,8 +120,8 @@ document.getElementById('runArbitrage').onclick = async () => {
         console.error("Arbitrage execution failed:", error);
         
         let errorMessage = error.message || "خطای ناشناخته.";
-        if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-             errorMessage = "**❌ خطای تراکنش: احتمالاً فرصت آربیتراژ وجود ندارد یا سود آنقدر کم است که هزینه گس را پوشش نمی‌دهد.**";
+        if (error.code === 'UNPREDICTABLE_GAS_LIMIT' || error.code === 'CALL_EXCEPTION') {
+             errorMessage = "**❌ خطای تراکنش: احتمالاً فرصت آربیتراژ وجود ندارد (سود کمتر از گس است).**";
         }
         updateStatus(`❌ خطا در اجرای آربیتراژ:\n${errorMessage}\n\n**لطفاً اطمینان حاصل کنید که ولت شما به شبکه سونیک متصل است.**`);
     }
