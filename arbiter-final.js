@@ -1,18 +1,16 @@
 ﻿// =======================================================================
 // === تعریف ثابت‌ها (Constants) - شبکه Sonic ===
-// **توجه:** آدرس‌ها بر اساس آخرین تأیید شما به‌روزرسانی شده‌اند.
 const CONTRACT_ADDRESS = "0xab5a031ca0491fce7df348f9a4dfed0410a7a7b5"; // آدرس قرارداد دیپلوی شده شما
 const WETH_ADDRESS = "0x50c42dEAcD8Fc9773493ED674b675bE577f2634b"; // WETH (18 decimals)
 const USDC_ADDRESS = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"; // USDC
 const ROUTER_SWAP_X = "0xa047e2abf8263fca7c368f43e2f960a06fd9949f"; // روتر SwapX (تماماً کوچک)
 const USDC_DECIMALS = 6; // دکیمال USDC در شبکه Sonic
 
-// نرخ تقریبی لحظه‌ای (باید بر اساس قیمت فعلی WETH/USDC تنظیم شود)
-// بر اساس آخرین داده‌ها (1 WETH ≈ 2835 USDC)
-const CURRENT_WETH_TO_USDC_RATE = 2835; 
-const SLIPPAGE_TOLERANCE_PERCENT = 0.5; // 0.5% لغزش قابل قبول
+// متغیرهای نرخ
+let CURRENT_WETH_TO_USDC_RATE = 2835; // مقدار پیش‌فرض در صورت عدم موفقیت API
+const SLIPPAGE_TOLERANCE_PERCENT = 0.1; // 0.1% لغزش قابل قبول
 
-// ABI اصلاح شده برای startArbitrage
+// ABI اصلاح شده
 const ARBITRAGE_ABI = [
     "function startArbitrage(uint128 amountWETH, uint256 estimatedUSDCReceived, uint256 deadline)"
 ];
@@ -28,9 +26,37 @@ function updateStatus(message) {
 }
 
 // =======================================================================
-// === تابع اصلی اتصال به ولت ===
+// === تابع جدید: دریافت نرخ لحظه‌ای از CoinGecko ===
+async function fetchCurrentRate() {
+    updateStatus("⏳ در حال دریافت نرخ لحظه‌ای WETH/USDC از CoinGecko...");
+    try {
+        // آدرس API عمومی CoinGecko برای ETH/USD
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'); 
+        const data = await response.json();
+
+        // ساختار پاسخ: {"ethereum":{"usd":...}}
+        const newRate = data.ethereum ? data.ethereum.usd : null; 
+        
+        if (newRate && !isNaN(newRate)) {
+            CURRENT_WETH_TO_USDC_RATE = newRate;
+            updateStatus(`✅ نرخ لحظه‌ای به‌روزرسانی شد. 1 WETH ≈ ${CURRENT_WETH_TO_USDC_RATE} USDC.`);
+        } else {
+            updateStatus(`⚠️ خطا در خواندن نرخ از API. از نرخ پیش‌فرض ${CURRENT_WETH_TO_USDC_RATE} استفاده می‌شود.`);
+        }
+    } catch (error) {
+        console.error("Could not fetch live rate:", error);
+        updateStatus(`❌ خطای اتصال به API قیمت. از نرخ پیش‌فرض ${CURRENT_WETH_TO_USDC_RATE} استفاده می‌شود.`);
+    }
+}
+
+
+// =======================================================================
+// === تابع اصلی اتصال به ولت (با فراخوانی نرخ) ===
 document.getElementById('connectWallet').onclick = async () => {
     
+    // ۱. دریافت نرخ لحظه‌ای قبل از اتصال کامل
+    await fetchCurrentRate();
+
     if (typeof window.ethereum === 'undefined') {
         updateStatus("❌ ولت (MetaMask یا Rabby) در مرورگر پیدا نشد. لطفاً نصب کنید.");
         return;
@@ -51,7 +77,7 @@ document.getElementById('connectWallet').onclick = async () => {
         
         const signerAddress = await signer.getAddress();
         
-        updateStatus(`✅ اتصال موفق. آدرس شما: ${signerAddress}`);
+        updateStatus(`✅ اتصال موفق. آدرس شما: ${signerAddress} | نرخ لحظه‌ای: ${CURRENT_WETH_TO_USDC_RATE} USDC`);
         document.getElementById('runArbitrage').disabled = false;
         document.getElementById('connectWallet').disabled = true;
 
@@ -80,10 +106,10 @@ document.getElementById('runArbitrage').onclick = async () => {
         const amountWETH = window.ethers.utils.parseUnits(amountDecimal, 18);
         
         // *******************************************************************
-        // *** محاسبه مقدار خروجی حداقل (amountOutMinUSDC) به صورت سخت‌کد شده ***
+        // *** محاسبه مقدار خروجی حداقل (amountOutMinUSDC) با نرخ به‌روز ***
         // *******************************************************************
         
-        // ۱. محاسبه مقدار USDC مورد انتظار (بدون در نظر گرفتن لغزش)
+        // ۱. محاسبه مقدار USDC مورد انتظار با نرخ لحظه‌ای (از CoinGecko یا Fallback)
         const expectedUSDC = amountDecimal * CURRENT_WETH_TO_USDC_RATE;
         
         // ۲. اعمال فاکتور لغزش
@@ -98,7 +124,7 @@ document.getElementById('runArbitrage').onclick = async () => {
         
         const deadline = Math.floor(Date.now() / 1000) + 60; // 60 ثانیه زمان انقضا
         
-        updateStatus(`⚠️ استعلام قیمت بایپس شد. حداقل USDC مورد نیاز (لغزش ${SLIPPAGE_TOLERANCE_PERCENT}%): ${window.ethers.utils.formatUnits(amountOutMinUSDC, USDC_DECIMALS)} USDC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
+        updateStatus(`⚠️ استعلام قیمت بایپس شد. حداقل USDC مورد نیاز: ${window.ethers.utils.formatUnits(amountOutMinUSDC, USDC_DECIMALS)} USDC\n\nلطفاً تراکنش را در ولت خود تأیید کنید...`);
 
         // ۴. فراخوانی تابع startArbitrage (نیاز به امضا)
         const tx = await arbitrageContract.startArbitrage(
