@@ -5,7 +5,7 @@ const CONTRACT_ADDRESS = "0xab5a031ca0491fce7df348f9a4dfed0410a7a7b5"; 
 
 const WETH_ADDRESS = "0x50c42dEAcD8Fc9773493ED674b675bE577f2634b"; // WETH
 const USDC_ADDRESS = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"; // USDC
-const ROUTER_SWAP_X = "0xA047e2AbF8263FcA7c368F43e2f960A06FD9949f"; // روتر SwapX
+const ROUTER_SWAP_X = "0xa047e2abf8263fca7c368f43e2f960a06fd9949f"; // روتر SwapX
 const USDC_DECIMALS = 6; // دکیمال استاندارد USDC (اگر در شبکه Sonic ۱۸ است، آن را تغییر دهید)
 
 // ABI اصلاح شده برای مطابقت با پارامترهای جدید: amountWETH, estimatedUSDCReceived, deadline
