@@ -6,9 +6,17 @@ const USDC_ADDRESS = "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"; // USDC
 const ROUTER_SWAP_X = "0xa047e2abf8263fca7c368f43e2f960a06fd9949f"; // روتر SwapX (تماماً کوچک)
 const USDC_DECIMALS = 6; // دکیمال USDC در شبکه Sonic
 
+// === ثابت جدید: آدرس استخر مرجع قیمت (Pool Reserves) ===
+const REFERENCE_POOL_ADDRESS = "0x7E50357098dA4d25735127128B2ffce21A269913"; 
+const POOL_ABI = [
+    "function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+    "function token0() external view returns (address)",
+    "function token1() external view returns (address)"
+];
+
 // متغیرهای نرخ
-let CURRENT_WETH_TO_USDC_RATE = 2835; // مقدار پیش‌فرض در صورت عدم موفقیت API
-const SLIPPAGE_TOLERANCE_PERCENT = 0.1; // 0.1% لغزش قابل قبول
+let CURRENT_WETH_TO_USDC_RATE = 2835; // مقدار پیش‌فرض (Fall-back)
+const SLIPPAGE_TOLERANCE_PERCENT = 0.5; // 0.5% لغزش قابل قبول
 
 // ABI اصلاح شده
 const ARBITRAGE_ABI = [
@@ -26,27 +34,45 @@ function updateStatus(message) {
 }
 
 // =======================================================================
-// === تابع جدید: دریافت نرخ لحظه‌ای از CoinGecko ===
+// === تابع جدید: دریافت نرخ لحظه‌ای از Reserves استخر ===
 async function fetchCurrentRate() {
-    updateStatus("⏳ در حال دریافت نرخ لحظه‌ای WETH/USDC از CoinGecko...");
-    try {
-        // آدرس API عمومی CoinGecko برای ETH/USD
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd'); 
-        const data = await response.json();
+    updateStatus("⏳ در حال دریافت نرخ لحظه‌ای از Pool Reserves...");
+    try {
+        // برای فراخوانی Pool Reserves از یک Provider عمومی استفاده می‌کنیم (نیازی به امضای ولت نیست)
+        const provider = new window.ethers.providers.Web3Provider(window.ethereum);
+        const poolContract = new window.ethers.Contract(REFERENCE_POOL_ADDRESS, POOL_ABI, provider);
+        
+        const token0Address = await poolContract.token0();
+        const reserves = await poolContract.getReserves();
+        
+        let reserveWETH, reserveUSDC;
+        
+        // تشخیص اینکه کدام توکن (WETH یا USDC) در reserve0 یا reserve1 قرار دارد
+        if (token0Address.toLowerCase() === WETH_ADDRESS.toLowerCase()) {
+            reserveWETH = reserves.reserve0;
+            reserveUSDC = reserves.reserve1;
+        } else {
+            reserveWETH = reserves.reserve1;
+            reserveUSDC = reserves.reserve0;
+        }
 
-        // ساختار پاسخ: {"ethereum":{"usd":...}}
-        const newRate = data.ethereum ? data.ethereum.usd : null; 
-        
-        if (newRate && !isNaN(newRate)) {
-            CURRENT_WETH_TO_USDC_RATE = newRate;
-            updateStatus(`✅ نرخ لحظه‌ای به‌روزرسانی شد. 1 WETH ≈ ${CURRENT_WETH_TO_USDC_RATE} USDC.`);
-        } else {
-            updateStatus(`⚠️ خطا در خواندن نرخ از API. از نرخ پیش‌فرض ${CURRENT_WETH_TO_USDC_RATE} استفاده می‌شود.`);
-        }
-    } catch (error) {
-        console.error("Could not fetch live rate:", error);
-        updateStatus(`❌ خطای اتصال به API قیمت. از نرخ پیش‌فرض ${CURRENT_WETH_TO_USDC_RATE} استفاده می‌شود.`);
-    }
+        // تبدیل reserves به واحدهای قابل خواندن (18 دکیمال برای WETH و 6 دکیمال برای USDC)
+        const amountWETH = window.ethers.utils.formatUnits(reserveWETH, 18);
+        const amountUSDC = window.ethers.utils.formatUnits(reserveUSDC, USDC_DECIMALS); 
+
+        // محاسبه نرخ: Rate = USDC / WETH
+        const newRate = parseFloat(amountUSDC) / parseFloat(amountWETH);
+        
+        if (!isNaN(newRate) && newRate > 0) {
+            CURRENT_WETH_TO_USDC_RATE = newRate;
+            updateStatus(`✅ نرخ لحظه‌ای به‌روزرسانی شد. 1 WETH ≈ ${newRate.toFixed(4)} USDC (از Pool Reserves).`);
+        } else {
+            updateStatus(`⚠️ خطای محاسبه نرخ Pool. از نرخ پیش‌فرض ${CURRENT_WETH_TO_USDC_RATE} استفاده می‌شود.`);
+        }
+    } catch (error) {
+        console.error("Could not fetch live rate from Pool:", error);
+        updateStatus(`❌ خطای اتصال به Pool. از نرخ پیش‌فرض ${CURRENT_WETH_TO_USDC_RATE} استفاده می‌شود.`);
+    }
 }
 
 
@@ -54,7 +80,7 @@ async function fetchCurrentRate() {
 // === تابع اصلی اتصال به ولت (با فراخوانی نرخ) ===
 document.getElementById('connectWallet').onclick = async () => {
     
-    // ۱. دریافت نرخ لحظه‌ای قبل از اتصال کامل
+    // ۱. دریافت نرخ لحظه‌ای قبل از اتصال کامل (دقیق‌ترین اوراکل)
     await fetchCurrentRate();
 
     if (typeof window.ethereum === 'undefined') {
@@ -88,7 +114,7 @@ document.getElementById('connectWallet').onclick = async () => {
 };
 
 // =======================================================================
-// === تابع اصلی اجرای آربیتراژ (با حفاظت سخت‌کد شده) ===
+// === تابع اصلی اجرای آربیتراژ (با حفاظت از Reserves) ===
 document.getElementById('runArbitrage').onclick = async () => {
     
     if (!signer) {
@@ -97,6 +123,9 @@ document.getElementById('runArbitrage').onclick = async () => {
     }
 
     try {
+        // حتماً نرخ را قبل از اجرا به‌روزرسانی کنید تا دقت بالا رود
+        await fetchCurrentRate();
+        
         const amountDecimal = document.getElementById('amount').value;
         if (!amountDecimal || isNaN(amountDecimal) || Number(amountDecimal) <= 0) {
             updateStatus("❌ لطفاً یک مقدار معتبر برای وام وارد کنید.");
@@ -106,10 +135,10 @@ document.getElementById('runArbitrage').onclick = async () => {
         const amountWETH = window.ethers.utils.parseUnits(amountDecimal, 18);
         
         // *******************************************************************
-        // *** محاسبه مقدار خروجی حداقل (amountOutMinUSDC) با نرخ به‌روز ***
+        // *** محاسبه مقدار خروجی حداقل (amountOutMinUSDC) با نرخ Reserves ***
         // *******************************************************************
         
-        // ۱. محاسبه مقدار USDC مورد انتظار با نرخ لحظه‌ای (از CoinGecko یا Fallback)
+        // ۱. محاسبه مقدار USDC مورد انتظار با نرخ لحظه‌ای (از Pool Reserves)
         const expectedUSDC = amountDecimal * CURRENT_WETH_TO_USDC_RATE;
         
         // ۲. اعمال فاکتور لغزش
